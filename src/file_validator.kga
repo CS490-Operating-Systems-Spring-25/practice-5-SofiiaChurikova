@@ -1,0 +1,462 @@
+DEBUG_OFF
+
+var disk_name
+var partition_name
+var cur_address
+var partition_index
+var partition_count
+var start_block
+var end_block
+var last_usable_block
+var cur_entry
+var error_desc
+
+label start
+    write COLOR_BLUE to DISPLAY_BACKGROUND
+    write OP_SET_BACKGROUND_COLOR to REG_OP
+    cpu_exec
+    
+    write "=========================================" to DISPLAY_BUFFER
+    write COLOR_CYAN to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "   KAGUOS FILESYSTEM VALIDATOR TOOL      " to DISPLAY_BUFFER
+    write COLOR_GREEN to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "=========================================" to DISPLAY_BUFFER
+    write COLOR_CYAN to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "This tool validates KaguFS filesystem headers" to DISPLAY_BUFFER
+    write COLOR_WHITE to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "" to DISPLAY_BUFFER
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+
+    jump label:get_user_input
+    
+label get_user_input
+    write "Enter disk name (main.disk): " to DISPLAY_BUFFER
+    write COLOR_CYAN to DISPLAY_COLOR
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+
+    write OP_READ_INPUT to REG_OP
+    cpu_exec
+    copy KEYBOARD_BUFFER to var:disk_name
+    
+    copy var:disk_name to REG_A
+    write "" to REG_B
+    write OP_CMP_EQ to REG_OP
+    cpu_exec
+    jump_if label:error_empty_name
+    
+    write "Enter partition name (part1): " to DISPLAY_BUFFER
+    write COLOR_CYAN to DISPLAY_COLOR
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+
+    write OP_READ_INPUT to REG_OP
+    cpu_exec
+    copy KEYBOARD_BUFFER to var:partition_name
+    
+    copy var:partition_name to REG_A 
+    write "" to REG_B
+    write OP_CMP_EQ to REG_OP
+    cpu_exec
+    jump_if label:error_empty_partition_name
+    
+    write "Validating partition " to DISPLAY_BUFFER
+    write COLOR_YELLOW to DISPLAY_COLOR
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+    
+    copy var:partition_name to DISPLAY_BUFFER
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+    
+    write " on disk " to DISPLAY_BUFFER
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+    
+    copy var:disk_name to DISPLAY_BUFFER
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "" to DISPLAY_BUFFER
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    jump label:validate_disk_exists
+
+label validate_disk_exists
+    write "Stage 1: Checking if disk exists..." to DISPLAY_BUFFER
+    write COLOR_WHITE to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    copy var:disk_name to REG_A
+    write "1" to REG_B
+    write OP_READ_BLOCK to REG_OP
+    cpu_exec
+    jump_err label:error_disk_not_exist
+    
+    write "  [OK] Disk exists" to DISPLAY_BUFFER
+    write COLOR_GREEN to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    copy var:disk_name to REG_A
+    write "3" to REG_B
+    write OP_READ_BLOCK to REG_OP
+    cpu_exec
+    jump_err label:error_no_partition_table
+    
+    copy REG_RES to REG_A
+    write "2" to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    
+    copy REG_RES to REG_A
+    write OP_IS_NUM to REG_OP
+    cpu_exec
+    jump_if_not label:error_invalid_partition_table
+    
+    copy REG_RES to var:partition_count
+    
+    write "  [OK] Found " to DISPLAY_BUFFER
+    write COLOR_GREEN to DISPLAY_COLOR
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+    
+    copy var:partition_count to DISPLAY_BUFFER
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+    
+    write " partitions in partition table" to DISPLAY_BUFFER
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "1" to var:partition_index
+    write "4" to var:cur_address
+    
+    jump label:scan_partitions
+
+label scan_partitions
+    write "Stage 2: Searching for partition..." to DISPLAY_BUFFER
+    write COLOR_WHITE to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    copy var:disk_name to REG_A
+    copy var:cur_address to REG_B
+    write OP_READ_BLOCK to REG_OP
+    cpu_exec
+    jump_err label:error_reading_partition_table
+    
+    copy REG_RES to var:cur_entry
+    
+    copy REG_RES to REG_A
+    write "2" to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    
+    copy REG_RES to REG_A
+    copy var:partition_name to REG_B
+    write OP_CMP_EQ to REG_OP
+    cpu_exec
+    jump_if label:partition_found
+    
+    copy var:partition_index to REG_A
+    write OP_INCR to REG_OP
+    cpu_exec
+    
+    copy REG_RES to var:partition_index
+    
+    copy var:partition_index to REG_A
+    copy var:partition_count to REG_B
+    write OP_CMP_LE to REG_OP
+    cpu_exec
+    jump_if_not label:error_partition_not_found
+    
+    copy var:cur_address to REG_A
+    write OP_INCR to REG_OP
+    cpu_exec
+    copy REG_RES to var:cur_address
+    
+    jump label:scan_partitions
+
+label partition_found
+    write "  [OK] Partition found" to DISPLAY_BUFFER
+    write COLOR_GREEN to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    copy var:cur_entry to REG_A
+    write "4" to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    
+    copy REG_RES to var:start_block
+    
+    write "  [INFO] Partition starts at block " to DISPLAY_BUFFER
+    write COLOR_CYAN to DISPLAY_COLOR
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+    
+    copy var:start_block to DISPLAY_BUFFER
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    copy var:cur_entry to REG_A
+    write "6" to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    
+    copy REG_RES to var:end_block
+    
+    write "  [INFO] Partition ends at block " to DISPLAY_BUFFER
+    write COLOR_CYAN to DISPLAY_COLOR
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+    
+    copy var:end_block to DISPLAY_BUFFER
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    copy var:disk_name to REG_A
+    copy var:start_block to REG_B
+    write OP_READ_BLOCK to REG_OP
+    cpu_exec
+    jump_err label:error_reading_header
+    
+    jump label:validate_header
+
+label validate_header
+    write "Stage 3: Validating filesystem header..." to DISPLAY_BUFFER
+    write COLOR_WHITE to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    copy REG_RES to var:cur_entry
+    copy var:cur_entry to REG_A
+    write "1" to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    
+    copy REG_RES to REG_A
+    write "FS_HEADER" to REG_B
+    write OP_CMP_EQ to REG_OP
+    cpu_exec
+    jump_if_not label:error_invalid_header
+    
+    copy var:cur_entry to REG_A
+    write "2" to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    
+    copy REG_RES to REG_A
+    write "kagu_fs" to REG_B
+    write OP_CMP_EQ to REG_OP
+    cpu_exec
+    jump_if_not label:error_invalid_header_type
+    
+    copy var:cur_entry to REG_A
+    write "3" to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    
+    copy REG_RES to REG_A
+    write "FIRST_USABLE_BLOCK" to REG_B
+    write OP_CMP_EQ to REG_OP
+    cpu_exec
+    jump_if_not label:error_invalid_structure
+    
+    copy var:cur_entry to REG_A
+    write "4" to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    
+    var g_fsFirstUsableBlock
+    copy REG_RES to var:g_fsFirstUsableBlock
+    
+    copy var:start_block to REG_A
+    copy var:g_fsFirstUsableBlock to REG_B
+    write OP_CMP_LT to REG_OP
+    cpu_exec
+    jump_if_not label:error_invalid_first_usable_block
+    
+    copy var:cur_entry to REG_A
+    write "5" to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    
+    copy REG_RES to REG_A
+    write "LAST_USABLE_BLOCK" to REG_B
+    write OP_CMP_EQ to REG_OP
+    cpu_exec
+    jump_if_not label:error_invalid_structure
+    
+    copy var:cur_entry to REG_A
+    write "6" to REG_B
+    write " " to REG_C
+    write OP_GET_COLUMN to REG_OP
+    cpu_exec
+    
+    copy REG_RES to var:last_usable_block
+    
+    copy var:last_usable_block to REG_A
+    copy var:end_block to REG_B
+    write OP_CMP_LE to REG_OP
+    cpu_exec
+    jump_if_not label:error_invalid_last_usable_block
+    
+    write "  [OK] Valid filesystem header" to DISPLAY_BUFFER
+    write COLOR_GREEN to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "  [INFO] Filesystem range: blocks " to DISPLAY_BUFFER
+    write COLOR_CYAN to DISPLAY_COLOR
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+    
+    copy var:g_fsFirstUsableBlock to DISPLAY_BUFFER
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+    
+    write " to " to DISPLAY_BUFFER
+    write OP_DISPLAY to REG_OP
+    cpu_exec
+    
+    copy var:last_usable_block to DISPLAY_BUFFER
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    jump label:validation_complete
+
+label validation_complete
+    write "=========================================" to DISPLAY_BUFFER
+    write COLOR_CYAN to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "FILESYSTEM VALIDATION COMPLETE" to DISPLAY_BUFFER
+    write COLOR_GREEN to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "The filesystem header is valid!" to DISPLAY_BUFFER
+    write COLOR_WHITE to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "=========================================" to DISPLAY_BUFFER
+    write COLOR_CYAN to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    jump label:exit
+
+label error_empty_name
+    write "ERROR: Disk name cannot be empty" to var:error_desc
+    jump label:show_error
+
+label error_empty_partition_name
+    write "ERROR: Partition name cannot be empty" to var:error_desc
+    jump label:show_error
+
+label error_disk_not_exist
+    write "ERROR: Disk not found or cannot be read" to var:error_desc
+    jump label:show_error
+
+label error_no_partition_table
+    write "ERROR: No valid partition table found" to var:error_desc
+    jump label:show_error
+
+label error_invalid_partition_table
+    write "ERROR: Invalid partition table format" to var:error_desc
+    jump label:show_error
+
+label error_reading_partition_table
+    write "ERROR: Failed to read partition table entry" to var:error_desc
+    jump label:show_error
+
+label error_partition_not_found
+    write "ERROR: Partition not found on disk" to var:error_desc
+    jump label:show_error
+
+label error_reading_header
+    write "ERROR: Failed to read filesystem header" to var:error_desc
+    jump label:show_error
+
+label error_invalid_header
+    write "ERROR: Invalid filesystem header (missing FS_HEADER marker)" to var:error_desc
+    jump label:show_error
+
+label error_invalid_header_type
+    write "ERROR: Invalid filesystem type (expected 'kagu_fs')" to var:error_desc
+    jump label:show_error
+
+label error_invalid_structure
+    write "ERROR: Invalid filesystem header structure" to var:error_desc
+    jump label:show_error
+
+label error_invalid_first_usable_block
+    write "ERROR: First usable block is outside partition boundaries" to var:error_desc
+    jump label:show_error
+
+label error_invalid_last_usable_block
+    write "ERROR: Last usable block is outside partition boundaries" to var:error_desc
+    jump label:show_error
+
+label show_error
+    write "=========================================" to DISPLAY_BUFFER
+    write COLOR_RED to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "VALIDATION FAILED" to DISPLAY_BUFFER
+    write COLOR_RED to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    copy var:error_desc to DISPLAY_BUFFER
+    write COLOR_WHITE to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write "=========================================" to DISPLAY_BUFFER
+    write COLOR_RED to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    jump label:exit
+
+label exit
+    write "Press Enter to exit" to DISPLAY_BUFFER
+    write COLOR_WHITE to DISPLAY_COLOR
+    write OP_DISPLAY_LN to REG_OP
+    cpu_exec
+    
+    write OP_READ_INPUT to REG_OP
+    cpu_exec
+    
+    write OP_HALT to REG_OP
+    cpu_exec
